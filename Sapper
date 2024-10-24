@@ -1,0 +1,205 @@
+import 'package:flutter/material.dart';
+import 'dart:math';
+
+void main() {
+  runApp(SapperApp());
+}
+
+class SapperApp extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      title: 'Sapper',
+      theme: ThemeData(
+        primarySwatch: Colors.blue,
+      ),
+      home: GamePage(),
+    );
+  }
+}
+
+class GamePage extends StatefulWidget {
+  @override
+  _GamePageState createState() => _GamePageState();
+}
+
+class _GamePageState extends State<GamePage> {
+  static const int rows = 10;
+  static const int columns = 10;
+  static const int minesCount = 10;
+
+  List<List<Cell>> _grid = [];
+  bool _gameOver = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _initializeGrid();
+  }
+
+  void _initializeGrid() {
+    _grid = List.generate(rows, (i) => List.generate(columns, (j) => Cell(i, j)));
+    _placeMines();
+    _calculateNumbers();
+  }
+
+  void _placeMines() {
+    Random random = Random();
+    int placedMines = 0;
+
+    while (placedMines < minesCount) {
+      int row = random.nextInt(rows);
+      int col = random.nextInt(columns);
+      if (!_grid[row][col].isMine) {
+        _grid[row][col].isMine = true;
+        placedMines++;
+      }
+    }
+  }
+
+  void _calculateNumbers() {
+    for (var row in _grid) {
+      for (var cell in row) {
+        if (cell.isMine) {
+          for (var neighbor in _getNeighbors(cell)) {
+            neighbor.adjacentMines++;
+          }
+        }
+      }
+    }
+  }
+
+  List<Cell> _getNeighbors(Cell cell) {
+    List<Cell> neighbors = [];
+    for (int i = -1; i <= 1; i++) {
+      for (int j = -1; j <= 1; j++) {
+        if (i == 0 && j == 0) continue;
+        int newRow = cell.row + i;
+        int newCol = cell.col + j;
+        if (newRow >= 0 && newRow < rows && newCol >= 0 && newCol < columns) {
+          neighbors.add(_grid[newRow][newCol]);
+        }
+      }
+    }
+    return neighbors;
+  }
+
+  void _onCellTap(Cell cell) {
+    if (_gameOver || cell.isRevealed) return;
+
+    setState(() {
+      cell.isRevealed = true;
+      if (cell.isMine) {
+        _gameOver = true;
+      } else if (cell.adjacentMines == 0) {
+        for (var neighbor in _getNeighbors(cell)) {
+          _onCellTap(neighbor);
+        }
+      }
+    });
+
+    if (!_gameOver && _isGameWon()) {
+      _gameOver = true;
+    }
+  }
+
+  bool _isGameWon() {
+    for (var row in _grid) {
+      for (var cell in row) {
+        if (!cell.isMine && !cell.isRevealed) {
+          return false;
+        }
+      }
+    }
+    return true;
+  }
+
+  void _resetGame() {
+    setState(() {
+      _gameOver = false;
+      _initializeGrid();
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text('Sapper'),
+        actions: [
+          IconButton(
+            icon: Icon(Icons.refresh),
+            onPressed: _resetGame,
+          ),
+        ],
+      ),
+      body: Column(
+        children: [
+          Expanded(
+            child: Container(
+              padding: EdgeInsets.all(5), 
+              child: GridView.builder(
+                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: columns,
+                  childAspectRatio: 1.0, 
+                ),
+                itemCount: rows * columns,
+                itemBuilder: (context, index) {
+                  int row = index ~/ columns;
+                  int col = index % columns;
+                  Cell cell = _grid[row][col];
+                  return GestureDetector(
+                    onTap: () => _onCellTap(cell),
+                    child: Container(
+                      width: 10,  
+                      height: 10, 
+                      margin: EdgeInsets.all(1),
+                      decoration: BoxDecoration(
+                        color: cell.isRevealed
+                            ? (cell.isMine ? Colors.red : Colors.grey[300])
+                            : Colors.blueGrey,
+                        border: Border.all(color: Colors.black),
+                      ),
+                      child: Center(
+                        child: cell.isRevealed
+                            ? (cell.isMine
+                                ? Icon(Icons.warning, size: 12, color: Colors.red) 
+                                : (cell.adjacentMines > 0
+                                    ? Text(
+                                        '${cell.adjacentMines}',
+                                        style: TextStyle(fontSize: 24), 
+                                      )
+                                    : Container()))
+                            : null,
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ),
+          if (_gameOver)
+            Container(
+              padding: EdgeInsets.all(20),
+              color: Colors.black54,
+              child: Text(
+                'Game over! Try again',
+                style: TextStyle(color: Colors.white, fontSize: 20),
+                textAlign: TextAlign.center,
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class Cell {
+  final int row;
+  final int col;
+  bool isMine = false;
+  bool isRevealed = false;
+  int adjacentMines = 0;
+
+  Cell(this.row, this.col);
+}
